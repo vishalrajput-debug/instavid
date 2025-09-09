@@ -9,8 +9,8 @@ DOWNLOAD_FOLDER = "downloads"
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 @app.route("/")
-def index():
-    return render_template("index.html")
+def home():
+    return "✅ Flask backend is running on Render!"
 
 @app.route("/download", methods=["POST"])
 def download_video():
