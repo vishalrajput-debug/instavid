@@ -1,10 +1,10 @@
-from flask import Flask, request, send_file, jsonify
+from flask import Flask, request, Response, jsonify
 from flask_cors import CORS
 import yt_dlp
-import io
+import requests
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://instaviddownload.com"])  # allow your frontend domain
 
 @app.route("/download", methods=["POST"])
 def download_video():
@@ -12,42 +12,36 @@ def download_video():
     if not url:
         return jsonify({"error": "No URL provided"}), 400
 
-    buffer = io.BytesIO()
-
-    # yt-dlp options
-    ydl_opts = {
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-        "outtmpl": "-",  # '-' means write to stdout
-        "noplaylist": True,
-        "quiet": True,
-        "merge_output_format": "mp4",
-    }
-
     try:
+        # Use yt_dlp to get direct video URL
+        ydl_opts = {
+            "format": "best[ext=mp4]/best",
+            "quiet": True,
+            "noplaylist": True,
+            "nocheckcertificate": True
+        }
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Download video into memory
-            info_dict = ydl.extract_info(url, download=True)
-            video_title = info_dict.get("title", "video")
+            info = ydl.extract_info(url, download=False)
+            video_url = info.get("url")
+            title = info.get("title", "video")
 
-        # yt-dlp writes directly to stdout; here we simulate with a temp file
-        # Since we can't truly stream to BytesIO without custom extractor,
-        # simpler approach: download to temp file and then serve it
-        import tempfile
-        import os
+        # Stream video directly from YouTube
+        def generate():
+            with requests.get(video_url, stream=True) as r:
+                r.raise_for_status()
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        yield chunk
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            ydl_opts["outtmpl"] = f"{tmpdir}/%(title)s.%(ext)s"
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info_dict = ydl.extract_info(url, download=True)
-                downloaded_file = ydl.prepare_filename(info_dict)
+        headers = {
+            "Content-Disposition": f'attachment; filename="{title}.mp4"'
+        }
 
-            return send_file(
-                downloaded_file,
-                as_attachment=True,
-                download_name=f"{video_title}.mp4",
-                mimetype="video/mp4"
-            )
+        return Response(generate(), headers=headers, mimetype="video/mp4")
 
+    except yt_dlp.utils.DownloadError as e:
+        return jsonify({"error": "Cannot download this video. It may require login or be restricted."}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
