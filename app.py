@@ -1,9 +1,11 @@
 from flask import Flask, render_template, request, send_file, jsonify
+from flask_cors import CORS
 import yt_dlp
 import os
 import uuid
 
 app = Flask(__name__)
+CORS(app)  # Allow all origins for now
 
 DOWNLOAD_FOLDER = "downloads"
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
