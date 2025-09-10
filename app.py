@@ -1,45 +1,51 @@
 from flask import Flask, request, send_file, jsonify
-from flask_cors import CORS  # <-- import
+from flask_cors import CORS
 import yt_dlp
-import os
-import tempfile
+import io
 
 app = Flask(__name__)
-CORS(app)  # <-- enable CORS for all routes
-
-# Path to your cookies file
-YOUTUBE_COOKIES = "cookies.txt"
+CORS(app)
 
 @app.route("/download", methods=["POST"])
-def download():
+def download_video():
     url = request.form.get("url")
     if not url:
         return jsonify({"error": "No URL provided"}), 400
 
-    temp_dir = tempfile.mkdtemp()
-    output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
-
-    ydl_opts = {
-        "outtmpl": output_path,
-    }
-
-    if "youtube.com" in url or "youtu.be" in url:
-        ydl_opts["cookies"] = YOUTUBE_COOKIES
-
     try:
+        buffer = io.BytesIO()
+
+        ydl_opts = {
+            "format": "best[ext=mp4]/best",
+            "outtmpl": "-",
+            "noplaylist": True,
+            "nocheckcertificate": True,
+            "progress_hooks": [lambda d: print(d['status'])],
+            "postprocessors": [],
+            "quiet": True,
+            "prefer_ffmpeg": True
+        }
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
+            info = ydl.extract_info(url, download=False)
+            video_url = info.get("url")
 
-        return send_file(filename, as_attachment=True)
+        # Fetch video bytes directly from URL
+        import requests
+        r = requests.get(video_url, stream=True)
+        for chunk in r.iter_content(chunk_size=8192):
+            buffer.write(chunk)
+
+        buffer.seek(0)
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=f"{info.get('title', 'video')}.mp4",
+            mimetype="video/mp4"
+        )
+
     except Exception as e:
-        print(f"Error downloading {url}: {e}")
-        return jsonify({"error": "Download failed"}), 500
-
-@app.route("/")
-def index():
-    return "Server is running!"
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
