@@ -1,11 +1,13 @@
 from flask import Flask, request, send_file, jsonify
+from flask_cors import CORS  # <-- import
 import yt_dlp
 import os
 import tempfile
 
 app = Flask(__name__)
+CORS(app)  # <-- enable CORS for all routes
 
-# Path to your cookies file (add cookies.txt to your repo)
+# Path to your cookies file
 YOUTUBE_COOKIES = "cookies.txt"
 
 @app.route("/download", methods=["POST"])
@@ -21,7 +23,6 @@ def download():
         "outtmpl": output_path,
     }
 
-    # Use cookies only for YouTube URLs
     if "youtube.com" in url or "youtu.be" in url:
         ydl_opts["cookies"] = YOUTUBE_COOKIES
 
