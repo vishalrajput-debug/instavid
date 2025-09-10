@@ -1,66 +1,44 @@
-from flask import Flask, render_template, request, send_file, jsonify
-from flask_cors import CORS
+from flask import Flask, request, send_file, jsonify
 import yt_dlp
 import os
-import uuid
+import tempfile
 
 app = Flask(__name__)
-CORS(app)  # Allow all origins for now
 
-DOWNLOAD_FOLDER = "downloads"
-os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
-
-@app.route("/")
-def home():
-    return "✅ Flask backend is running on Render!"
+# Path to your cookies file (add cookies.txt to your repo)
+YOUTUBE_COOKIES = "cookies.txt"
 
 @app.route("/download", methods=["POST"])
-def download_video():
+def download():
     url = request.form.get("url")
     if not url:
         return jsonify({"error": "No URL provided"}), 400
 
+    temp_dir = tempfile.mkdtemp()
+    output_path = os.path.join(temp_dir, "%(title)s.%(ext)s")
+
+    ydl_opts = {
+        "outtmpl": output_path,
+    }
+
+    # Use cookies only for YouTube URLs
+    if "youtube.com" in url or "youtu.be" in url:
+        ydl_opts["cookies"] = YOUTUBE_COOKIES
+
     try:
-        # Create a temporary file path
-        temp_filepath = os.path.join(DOWNLOAD_FOLDER, f"{uuid.uuid4()}")
-        
-        ydl_opts = {
-            "format": "best[ext=mp4]/best",
-            "outtmpl": f"{temp_filepath}.%(ext)s",  # Use a template to include the original extension
-            "noplaylist": True,
-            "nocheckcertificate": True,
-            "progress_hooks": [lambda d: print(d['status'])] # Add a progress hook for debugging
-        }
-
-        # Use a list to store the filename extracted by yt-dlp
-        filename_storage = []
-
-        def get_filename_hook(d):
-            if d['status'] == 'finished':
-                # Store the actual file path after the download is complete
-                filename_storage.append(d['filename'])
-
-        ydl_opts['progress_hooks'].append(get_filename_hook)
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        
-        # Get the actual filename after the download
-        if not filename_storage:
-            return jsonify({"error": "yt-dlp failed to download the video."}), 500
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
 
-        filepath = filename_storage[0]
-        # Extract the original filename from the full path
-        original_filename = os.path.basename(filepath)
-
-        return send_file(
-            filepath,
-            as_attachment=True,
-            download_name=original_filename # Pass the filename to the user's browser
-        )
-
+        return send_file(filename, as_attachment=True)
     except Exception as e:
-        return jsonify({"error": f"Error: {str(e)}"}), 500
+        print(f"Error downloading {url}: {e}")
+        return jsonify({"error": "Download failed"}), 500
+
+@app.route("/")
+def index():
+    return "Server is running!"
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
