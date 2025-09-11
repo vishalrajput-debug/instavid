@@ -64,7 +64,6 @@ def download_video():
             params = {"url": url}
 
             response = requests.get(api_url, headers=headers, params=params, timeout=30)
-
         else:
             return jsonify({"error": "Invalid URL. Only YouTube and Instagram are supported."}), 400
 
