@@ -1,76 +1,101 @@
-import os
-import requests
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+import requests
+import re
 
 app = Flask(__name__)
-CORS(app)
 
-# Load API key (use env var in production)
-RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238")
+# Put your RapidAPI key here
+RAPIDAPI_KEY = "YOUR_RAPIDAPI_KEY"
+RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 
-YOUTUBE_API_HOST = "youtube-video-and-shorts-downloader.p.rapidapi.com"
+# Function to extract video ID from any YouTube URL
+def extract_video_id(url):
+    # Short URL: youtu.be/VIDEO_ID
+    short_match = re.search(r'youtu\.be/([^\?&]+)', url)
+    if short_match:
+        return short_match.group(1)
+    
+    # Standard URL: youtube.com/watch?v=VIDEO_ID
+    long_match = re.search(r'v=([^\?&]+)', url)
+    if long_match:
+        return long_match.group(1)
+    
+    return None
 
-@app.route("/")
-def home():
-    return "✅ Flask backend with RapidAPI is running!"
-
-@app.route("/download", methods=["POST"])
+@app.route("/download/video", methods=["GET"])
 def download_video():
-    url = None
-
-    # Handle both JSON and form-urlencoded
-    if request.is_json:
-        data = request.get_json()
-        url = data.get("url")
-    else:
-        url = request.form.get("url")
-
+    url = request.args.get("url")
+    quality = request.args.get("quality", "137")  # default 137
+    
     if not url:
-        return jsonify({"error": "No URL provided"}), 400
-
+        return jsonify({"error": "Missing URL parameter"}), 400
+    
+    video_id = extract_video_id(url)
+    if not video_id:
+        return jsonify({"error": "Invalid YouTube URL"}), 400
+    
+    rapidapi_url = f"https://{RAPIDAPI_HOST}/download_video/{video_id}?quality={quality}"
     headers = {
-        "x-rapidapi-key": RAPIDAPI_KEY,
-        "x-rapidapi-host": YOUTUBE_API_HOST
+        "X-Rapidapi-Key": RAPIDAPI_KEY,
+        "X-Rapidapi-Host": RAPIDAPI_HOST
     }
+    
+    response = requests.get(rapidapi_url, headers=headers)
+    
+    if response.status_code != 200:
+        return jsonify({"error": "Failed to fetch video", "details": response.text}), 400
+    
+    return jsonify(response.json())
 
-    try:
-        # API endpoint: Resolve URL → Get download links
-        api_url = f"https://{YOUTUBE_API_HOST}/resolveUrl.php"
-        params = {"url": url}
-        response = requests.get(api_url, headers=headers, params=params, timeout=30)
-        response.raise_for_status()
+@app.route("/download/audio", methods=["GET"])
+def download_audio():
+    url = request.args.get("url")
+    quality = request.args.get("quality", "251")  # default 251
+    
+    if not url:
+        return jsonify({"error": "Missing URL parameter"}), 400
+    
+    video_id = extract_video_id(url)
+    if not video_id:
+        return jsonify({"error": "Invalid YouTube URL"}), 400
+    
+    rapidapi_url = f"https://{RAPIDAPI_HOST}/download_audio/{video_id}?quality={quality}"
+    headers = {
+        "X-Rapidapi-Key": RAPIDAPI_KEY,
+        "X-Rapidapi-Host": RAPIDAPI_HOST
+    }
+    
+    response = requests.get(rapidapi_url, headers=headers)
+    
+    if response.status_code != 200:
+        return jsonify({"error": "Failed to fetch audio", "details": response.text}), 400
+    
+    return jsonify(response.json())
 
-        data = response.json()
-
-        # Extract download link
-        download_link = None
-        if isinstance(data, dict):
-            if "url" in data:
-                download_link = data["url"]
-            elif "download_url" in data:
-                download_link = data["download_url"]
-            elif "video" in data and isinstance(data["video"], list):
-                download_link = data["video"][0].get("url")
-
-        if not download_link:
-            return jsonify({
-                "error": "No valid download link found in API response",
-                "api_response": data
-            }), 500
-
-        return jsonify({
-            "message": "Download link fetched successfully",
-            "download_link": download_link
-        }), 200
-
-    except requests.exceptions.Timeout:
-        return jsonify({"error": "API request timed out"}), 504
-    except requests.exceptions.HTTPError as e:
-        return jsonify({"error": f"API Error: {str(e)}"}), e.response.status_code
-    except Exception as e:
-        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
-
+@app.route("/download/short", methods=["GET"])
+def download_short():
+    url = request.args.get("url")
+    quality = request.args.get("quality", "137")  # default 137
+    
+    if not url:
+        return jsonify({"error": "Missing URL parameter"}), 400
+    
+    video_id = extract_video_id(url)
+    if not video_id:
+        return jsonify({"error": "Invalid YouTube URL"}), 400
+    
+    rapidapi_url = f"https://{RAPIDAPI_HOST}/download_short/{video_id}?quality={quality}"
+    headers = {
+        "X-Rapidapi-Key": RAPIDAPI_KEY,
+        "X-Rapidapi-Host": RAPIDAPI_HOST
+    }
+    
+    response = requests.get(rapidapi_url, headers=headers)
+    
+    if response.status_code != 200:
+        return jsonify({"error": "Failed to fetch short video", "details": response.text}), 400
+    
+    return jsonify(response.json())
 
 if __name__ == "__main__":
     app.run(debug=True)
