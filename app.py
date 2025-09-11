@@ -1,9 +1,11 @@
 from flask import Flask, request, jsonify
 import requests
 import re
+from flask_cors import CORS
+
 
 app = Flask(__name__)
-
+CORS(app, origins=["https://instavid.netlify.app"])
 # RapidAPI credentials
 RAPIDAPI_KEY = "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238"
 RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
