@@ -1,46 +1,76 @@
-from flask import Flask, request, jsonify, send_file
-from flask_cors import CORS
-from pytube import YouTube
 import os
+import requests
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app)
 
-DOWNLOAD_FOLDER = "downloads"
-os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+# Load API key (use env var in production)
+RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238")
+
+YOUTUBE_API_HOST = "youtube-video-and-shorts-downloader.p.rapidapi.com"
+
+@app.route("/")
+def home():
+    return "✅ Flask backend with RapidAPI is running!"
 
 @app.route("/download", methods=["POST"])
 def download_video():
-    try:
+    url = None
+
+    # Handle both JSON and form-urlencoded
+    if request.is_json:
         data = request.get_json()
-        video_url = data.get("url")
+        url = data.get("url")
+    else:
+        url = request.form.get("url")
 
-        if not video_url:
-            return jsonify({"error": "No URL provided"}), 400
+    if not url:
+        return jsonify({"error": "No URL provided"}), 400
 
-        # Initialize YouTube object
-        yt = YouTube(video_url)
+    headers = {
+        "x-rapidapi-key": RAPIDAPI_KEY,
+        "x-rapidapi-host": YOUTUBE_API_HOST
+    }
 
-        # Get highest resolution stream
-        stream = yt.streams.get_highest_resolution()
+    try:
+        # API endpoint: Resolve URL → Get download links
+        api_url = f"https://{YOUTUBE_API_HOST}/resolveUrl.php"
+        params = {"url": url}
+        response = requests.get(api_url, headers=headers, params=params, timeout=30)
+        response.raise_for_status()
 
-        # Create safe filename
-        filename = "".join(c for c in yt.title if c.isalnum() or c in (" ", "_", "-")).rstrip() + ".mp4"
-        filepath = os.path.join(DOWNLOAD_FOLDER, filename)
+        data = response.json()
 
-        # Download video
-        stream.download(output_path=DOWNLOAD_FOLDER, filename=filename)
+        # Extract download link
+        download_link = None
+        if isinstance(data, dict):
+            if "url" in data:
+                download_link = data["url"]
+            elif "download_url" in data:
+                download_link = data["download_url"]
+            elif "video" in data and isinstance(data["video"], list):
+                download_link = data["video"][0].get("url")
 
-        return send_file(filepath, as_attachment=True)
+        if not download_link:
+            return jsonify({
+                "error": "No valid download link found in API response",
+                "api_response": data
+            }), 500
 
+        return jsonify({
+            "message": "Download link fetched successfully",
+            "download_link": download_link
+        }), 200
+
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "API request timed out"}), 504
+    except requests.exceptions.HTTPError as e:
+        return jsonify({"error": f"API Error: {str(e)}"}), e.response.status_code
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"message": "YouTube Downloader API running with pytube"})
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True)
