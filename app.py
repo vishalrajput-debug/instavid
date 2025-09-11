@@ -4,8 +4,8 @@ import re
 
 app = Flask(__name__)
 
-# Put your RapidAPI key here
-RAPIDAPI_KEY = "YOUR_RAPIDAPI_KEY"
+# RapidAPI credentials
+RAPIDAPI_KEY = "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238"
 RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 
 # Function to extract video ID from any YouTube URL
