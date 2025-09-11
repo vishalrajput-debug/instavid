@@ -4,91 +4,81 @@ import re
 from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app, origins=["*"], supports_credentials=True)  # allow all origins for testing
 
-# Enable CORS for your Netlify frontend
-CORS(app, origins=["https://instavid.netlify.app"], supports_credentials=True)
-
-# RapidAPI credentials
+# ------------------ RapidAPI Config ------------------
 RAPIDAPI_KEY = "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238"
 RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 
-# Function to extract video ID from any YouTube URL
+# ------------------ Helper Function ------------------
 def extract_video_id(url):
-    short_match = re.search(r'youtu\.be/([^\?&]+)', url)
+    """
+    Extract YouTube video ID from any URL
+    """
+    # Shorts URL: youtube.com/shorts/VIDEO_ID
+    short_match = re.search(r'shorts/([^\?&]+)', url)
     if short_match:
-        return short_match.group(1)
+        return short_match.group(1), "short"
     
+    # Short youtu.be URL
+    short_youtu = re.search(r'youtu\.be/([^\?&]+)', url)
+    if short_youtu:
+        return short_youtu.group(1), "video"
+
+    # Standard URL: youtube.com/watch?v=VIDEO_ID
     long_match = re.search(r'v=([^\?&]+)', url)
     if long_match:
-        return long_match.group(1)
-    
-    return None
+        return long_match.group(1), "video"
 
-def fetch_from_rapidapi(endpoint, video_id, quality):
-    url = f"https://{RAPIDAPI_HOST}/{endpoint}/{video_id}?quality={quality}"
+    return None, None
+
+# ------------------ Main Download Endpoint ------------------
+@app.route("/download", methods=["GET"])
+def download():
+    url = request.args.get("url")
+    quality = request.args.get("quality")  # optional, fallback will be default
+    
+    if not url:
+        return jsonify({"error": "Missing URL parameter"}), 400
+    
+    video_id, video_type = extract_video_id(url)
+    if not video_id:
+        return jsonify({"error": "Invalid YouTube URL"}), 400
+
+    # Default quality values
+    if not quality:
+        quality = "137" if video_type != "audio" else "251"
+
+    # Determine which endpoint to use
+    if video_type == "short":
+        endpoint = f"/download_short/{video_id}?quality={quality}"
+    else:
+        endpoint = f"/download_video/{video_id}?quality={quality}"
+    
+    # Audio override if requested
+    if request.args.get("type") == "audio":
+        endpoint = f"/download_audio/{video_id}?quality={quality}"
+
+    rapidapi_url = f"https://{RAPIDAPI_HOST}{endpoint}"
     headers = {
         "X-Rapidapi-Key": RAPIDAPI_KEY,
         "X-Rapidapi-Host": RAPIDAPI_HOST
     }
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        return None, response.text
-    return response.json(), None
 
-# Generic route handler for OPTIONS preflight
-@app.before_request
-def handle_options():
-    if request.method == 'OPTIONS':
-        return '', 200
+    try:
+        response = requests.get(rapidapi_url, headers=headers, timeout=30)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": "Failed to fetch from RapidAPI", "details": str(e)}), 500
 
-@app.route("/download/video", methods=["GET", "OPTIONS"])
-def download_video():
-    url = request.args.get("url")
-    quality = request.args.get("quality", "137")
-    if not url:
-        return jsonify({"error": "Missing URL parameter"}), 400
-    
-    video_id = extract_video_id(url)
-    if not video_id:
-        return jsonify({"error": "Invalid YouTube URL"}), 400
-    
-    data, error = fetch_from_rapidapi("download_video", video_id, quality)
-    if error:
-        return jsonify({"error": "Failed to fetch video", "details": error}), 400
+    try:
+        data = response.json()
+    except Exception:
+        return jsonify({"error": "Invalid JSON response from RapidAPI"}), 500
+
+    # Return JSON including file URL
     return jsonify(data)
 
-@app.route("/download/audio", methods=["GET", "OPTIONS"])
-def download_audio():
-    url = request.args.get("url")
-    quality = request.args.get("quality", "251")
-    if not url:
-        return jsonify({"error": "Missing URL parameter"}), 400
-    
-    video_id = extract_video_id(url)
-    if not video_id:
-        return jsonify({"error": "Invalid YouTube URL"}), 400
-    
-    data, error = fetch_from_rapidapi("download_audio", video_id, quality)
-    if error:
-        return jsonify({"error": "Failed to fetch audio", "details": error}), 400
-    return jsonify(data)
-
-@app.route("/download/short", methods=["GET", "OPTIONS"])
-def download_short():
-    url = request.args.get("url")
-    quality = request.args.get("quality", "137")
-    if not url:
-        return jsonify({"error": "Missing URL parameter"}), 400
-    
-    video_id = extract_video_id(url)
-    if not video_id:
-        return jsonify({"error": "Invalid YouTube URL"}), 400
-    
-    data, error = fetch_from_rapidapi("download_short", video_id, quality)
-    if error:
-        return jsonify({"error": "Failed to fetch short video", "details": error}), 400
-    return jsonify(data)
-
+# ------------------ Run App ------------------
 if __name__ == "__main__":
-    # Use host='0.0.0.0' when deploying to Render
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True)
