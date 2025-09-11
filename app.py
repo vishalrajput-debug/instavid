@@ -4,7 +4,7 @@ import re
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, origins=["*"], supports_credentials=True)  # allow all origins for testing
+CORS(app, origins=["*"], supports_credentials=True)  # allow all origins
 
 # ------------------ RapidAPI Config ------------------
 RAPIDAPI_KEY = "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238"
@@ -33,14 +33,22 @@ def extract_video_id(url):
     return None, None
 
 # ------------------ Main Download Endpoint ------------------
-@app.route("/download", methods=["GET"])
+@app.route("/download", methods=["GET", "POST"])
 def download():
-    url = request.args.get("url")
-    quality = request.args.get("quality")  # optional, fallback will be default
-    
+    # Handle both POST (JSON) and GET (query params)
+    if request.method == "POST":
+        data = request.get_json()
+        url = data.get("url")
+        quality = data.get("quality")
+        download_type = data.get("type")
+    else:
+        url = request.args.get("url")
+        quality = request.args.get("quality")
+        download_type = request.args.get("type")
+
     if not url:
         return jsonify({"error": "Missing URL parameter"}), 400
-    
+
     video_id, video_type = extract_video_id(url)
     if not video_id:
         return jsonify({"error": "Invalid YouTube URL"}), 400
@@ -49,15 +57,13 @@ def download():
     if not quality:
         quality = "137" if video_type != "audio" else "251"
 
-    # Determine which endpoint to use
-    if video_type == "short":
+    # Determine endpoint
+    if download_type == "audio":
+        endpoint = f"/download_audio/{video_id}?quality={quality}"
+    elif video_type == "short":
         endpoint = f"/download_short/{video_id}?quality={quality}"
     else:
         endpoint = f"/download_video/{video_id}?quality={quality}"
-    
-    # Audio override if requested
-    if request.args.get("type") == "audio":
-        endpoint = f"/download_audio/{video_id}?quality={quality}"
 
     rapidapi_url = f"https://{RAPIDAPI_HOST}{endpoint}"
     headers = {
@@ -68,16 +74,12 @@ def download():
     try:
         response = requests.get(rapidapi_url, headers=headers, timeout=30)
         response.raise_for_status()
+        data = response.json()
+        return jsonify(data)
     except requests.exceptions.RequestException as e:
         return jsonify({"error": "Failed to fetch from RapidAPI", "details": str(e)}), 500
-
-    try:
-        data = response.json()
     except Exception:
         return jsonify({"error": "Invalid JSON response from RapidAPI"}), 500
-
-    # Return JSON including file URL
-    return jsonify(data)
 
 # ------------------ Run App ------------------
 if __name__ == "__main__":
