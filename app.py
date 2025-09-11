@@ -36,11 +36,13 @@ def download_video():
         if "youtube.com" in url or "youtu.be" in url:
             headers["x-rapidapi-host"] = YOUTUBE_API_HOST
 
-            # Extract YouTube video ID
-            if "v=" in url:
+            # Cleanly extract YouTube video ID
+            if "v=" in url:  # Standard YouTube link
                 video_id = url.split("v=")[-1].split("&")[0]
-            else:
-                video_id = url.split("/")[-1]
+            elif "shorts/" in url:  # Shorts link
+                video_id = url.split("shorts/")[-1].split("?")[0]
+            else:  # youtu.be or other fallback
+                video_id = url.split("/")[-1].split("?")[0]
 
             api_url = YOUTUBE_API_URL
             params = {"id": video_id}
@@ -72,7 +74,10 @@ def download_video():
             download_link = data["video_url"]
 
         if not download_link:
-            return jsonify({"error": "No valid download link found in API response.", "api_response": data}), 500
+            return jsonify({
+                "error": "No valid download link found in API response.",
+                "api_response": data
+            }), 500
 
         return jsonify({"download_link": download_link}), 200
 
