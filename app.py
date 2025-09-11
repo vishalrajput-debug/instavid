@@ -1,18 +1,17 @@
 import os
 import requests
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
 
-# Use your actual API Key from your RapidAPI account
-# IMPORTANT: DO NOT hardcode this in production. Use environment variables.
+# Use env vars in production
 RAPIDAPI_KEY = "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238"
 
-# Define the hosts and base URLs for each API
-YOUTUBE_API_HOST = "youtube-media-downloader.p.rapidapi.com"
-YOUTUBE_API_URL = f"https://{YOUTUBE_API_HOST}/v2/video" # A more appropriate endpoint for single videos
+# API hosts
+YOUTUBE_API_HOST = "youtube-mp4-mp3-downloader.p.rapidapi.com"
+YOUTUBE_API_URL = f"https://{YOUTUBE_API_HOST}/api/v1/progress"
 
 INSTAGRAM_API_HOST = "instagram-reels-downloader-api.p.rapidapi.com"
 INSTAGRAM_API_URL = f"https://{INSTAGRAM_API_HOST}/download"
@@ -29,40 +28,52 @@ def download_video():
 
     headers = {
         "x-rapidapi-key": RAPIDAPI_KEY,
-        "x-rapidapi-host": ""  # This will be set dynamically
+        "x-rapidapi-host": ""
     }
-    
-    # Check the URL to determine which API to call
-    if "youtube.com" in url or "youtu.be" in url:
-        headers["x-rapidapi-host"] = YOUTUBE_API_HOST
-        api_url = YOUTUBE_API_URL
-        params = {"url": url} # Use 'url' as the parameter key
-    elif "instagram.com" in url:
-        headers["x-rapidapi-host"] = INSTAGRAM_API_HOST
-        api_url = INSTAGRAM_API_URL
-        params = {"url": url} # Use 'url' as the parameter key
-    else:
-        return jsonify({"error": "Invalid URL. Only YouTube and Instagram are supported."}), 400
 
     try:
-        # Make the API request with a timeout
-        response = requests.get(api_url, headers=headers, params=params, timeout=30)
-        response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
-        
-        # Get the JSON response from the API
+        # YouTube handling
+        if "youtube.com" in url or "youtu.be" in url:
+            headers["x-rapidapi-host"] = YOUTUBE_API_HOST
+
+            # Extract YouTube video ID
+            if "v=" in url:
+                video_id = url.split("v=")[-1].split("&")[0]
+            else:
+                video_id = url.split("/")[-1]
+
+            api_url = YOUTUBE_API_URL
+            params = {"id": video_id}
+
+            response = requests.get(api_url, headers=headers, params=params, timeout=30)
+
+        # Instagram handling
+        elif "instagram.com" in url:
+            headers["x-rapidapi-host"] = INSTAGRAM_API_HOST
+            api_url = INSTAGRAM_API_URL
+            params = {"url": url}
+
+            response = requests.get(api_url, headers=headers, params=params, timeout=30)
+
+        else:
+            return jsonify({"error": "Invalid URL. Only YouTube and Instagram are supported."}), 400
+
+        # Handle API response
+        response.raise_for_status()
         data = response.json()
-        
-        # The API's response structure will vary.
-        # You'll need to inspect the JSON to find the actual download link.
-        # Example: some APIs return a 'video_url' field.
-        if "video_url" in data:
-            download_link = data["video_url"]
+
+        # Extract a valid download link
+        download_link = None
+        if "url" in data:
+            download_link = data["url"]
         elif "download_url" in data:
             download_link = data["download_url"]
-        else:
-            return jsonify({"error": "API response did not contain a valid download link."}), 500
+        elif "video_url" in data:
+            download_link = data["video_url"]
 
-        # Return the direct download link to the front end
+        if not download_link:
+            return jsonify({"error": "No valid download link found in API response.", "api_response": data}), 500
+
         return jsonify({"download_link": download_link}), 200
 
     except requests.exceptions.Timeout:
@@ -70,8 +81,8 @@ def download_video():
     except requests.exceptions.HTTPError as e:
         return jsonify({"error": f"API Error: {str(e)}"}), e.response.status_code
     except Exception as e:
-        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
+
 
 if __name__ == "__main__":
-    # In production, use Gunicorn as defined in your Procfile
     app.run(debug=True)
