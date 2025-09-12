@@ -55,44 +55,45 @@ def download():
     else:
         return jsonify({"error": "Unsupported URL"}), 400
 
-    # ------------------ YouTube Handling ------------------
-    if platform == "youtube":
-        video_id, video_type = extract_video_id(url)
-        if not video_id:
-            return jsonify({"error": "Invalid YouTube URL"}), 400
-
-        quality = "22"  # default 720p
-        if video_type == "short":
-            endpoint = f"/download_short/{video_id}?quality={quality}"
-        else:
-            endpoint = f"/download_video/{video_id}?quality={quality}"
-
-        rapidapi_url = f"https://{YOUTUBE_HOST}{endpoint}"
-        headers = {
-            "X-Rapidapi-Key": RAPIDAPI_KEY,
-            "X-Rapidapi-Host": YOUTUBE_HOST
-        }
-
-    # ------------------ Instagram Handling ------------------
-    elif platform == "instagram":
-        rapidapi_url = f"https://{INSTAGRAM_HOST}/?url={url}"
-        headers = {
-            "X-Rapidapi-Key": RAPIDAPI_KEY,
-            "X-Rapidapi-Host": INSTAGRAM_HOST
-        }
-
-    # ------------------ API Request ------------------
     try:
-        response = requests.get(rapidapi_url, headers=headers, timeout=30)
-        response.raise_for_status()
-        data = response.json()
+        # ------------------ YouTube Handling ------------------
+        if platform == "youtube":
+            video_id, video_type = extract_video_id(url)
+            if not video_id:
+                return jsonify({"error": "Invalid YouTube URL"}), 400
 
-        # Normalize response
-        if platform == "youtube" and "file" in data:
-            data["download_link"] = data["file"]
+            quality = "22"  # default 720p
+            if video_type == "short":
+                endpoint = f"/download_short/{video_id}?quality={quality}"
+            else:
+                endpoint = f"/download_video/{video_id}?quality={quality}"
 
-        if platform == "instagram":
-            # Different APIs may return different keys
+            rapidapi_url = f"https://{YOUTUBE_HOST}{endpoint}"
+            headers = {
+                "X-Rapidapi-Key": RAPIDAPI_KEY,
+                "X-Rapidapi-Host": YOUTUBE_HOST
+            }
+            response = requests.get(rapidapi_url, headers=headers, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+
+            if "file" in data:
+                data["download_link"] = data["file"]
+
+        # ------------------ Instagram Handling ------------------
+        elif platform == "instagram":
+            rapidapi_url = f"https://{INSTAGRAM_HOST}/"
+            headers = {
+                "X-Rapidapi-Key": RAPIDAPI_KEY,
+                "X-Rapidapi-Host": INSTAGRAM_HOST,
+                "Content-Type": "application/json"
+            }
+            payload = {"url": url}
+            response = requests.post(rapidapi_url, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+
+            # Normalize possible response keys
             if "media" in data:
                 data["download_link"] = data["media"]
             elif "result" in data:
