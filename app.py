@@ -55,7 +55,7 @@ def download():
 
     # Default quality values
     if not quality:
-        quality = "137" if video_type != "audio" else "251"
+        quality = "22" if video_type != "audio" else "251"
 
     # Determine endpoint
     if download_type == "audio":
