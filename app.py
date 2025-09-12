@@ -11,6 +11,8 @@ RAPIDAPI_KEY = "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238"
 RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 
 # ------------------ Helper Function ------------------
+
+
 def extract_video_id(url):
     """
     Extract YouTube video ID from any URL
@@ -19,7 +21,7 @@ def extract_video_id(url):
     short_match = re.search(r'shorts/([^\?&]+)', url)
     if short_match:
         return short_match.group(1), "short"
-    
+
     # Short youtu.be URL
     short_youtu = re.search(r'youtu\.be/([^\?&]+)', url)
     if short_youtu:
@@ -33,6 +35,8 @@ def extract_video_id(url):
     return None, None
 
 # ------------------ Main Download Endpoint ------------------
+
+
 @app.route("/download", methods=["GET", "POST"])
 def download():
     # Handle both POST (JSON) and GET (query params)
@@ -54,13 +58,10 @@ def download():
         return jsonify({"error": "Invalid YouTube URL"}), 400
 
     # Default quality values
-    if not quality:
-        quality = "22" if video_type != "audio" else "251"
+    quality = "22"
 
     # Determine endpoint
-    if download_type == "audio":
-        endpoint = f"/download_audio/{video_id}?quality={quality}"
-    elif video_type == "short":
+    if video_type == "short":
         endpoint = f"/download_short/{video_id}?quality={quality}"
     else:
         endpoint = f"/download_video/{video_id}?quality={quality}"
