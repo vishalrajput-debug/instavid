@@ -75,6 +75,8 @@ def download():
         response = requests.get(rapidapi_url, headers=headers, timeout=30)
         response.raise_for_status()
         data = response.json()
+        if "file" in data:
+            data["download_link"] = data["file"]
         return jsonify(data)
     except requests.exceptions.RequestException as e:
         return jsonify({"error": "Failed to fetch from RapidAPI", "details": str(e)}), 500
