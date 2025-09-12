@@ -58,7 +58,7 @@ def download():
         return jsonify({"error": "Invalid YouTube URL"}), 400
 
     # Default quality values
-    quality = "22"
+    quality = "18"
 
     # Determine endpoint
     if video_type == "short":
