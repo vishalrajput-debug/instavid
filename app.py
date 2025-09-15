@@ -47,7 +47,13 @@ def is_instagram_url(url):
 @app.route("/download", methods=["POST", "GET"])
 def download():
     """Unified endpoint to download videos from YouTube and Instagram."""
-    data = request.get_json()
+    
+    # Check the request method and get data accordingly
+    if request.method == "POST":
+        data = request.get_json()
+    else:  # Assumes GET request
+        data = request.args
+
     url = data.get("url")
     requested_quality = data.get("quality")
 
@@ -113,12 +119,13 @@ def download():
             "X-Rapidapi-Key": RAPIDAPI_KEY,
             "X-Rapidapi-Host": INSTAGRAM_RAPIDAPI_HOST
         }
+        
+        # NOTE: Instagram API uses a GET request with query parameters.
         params = {
             "downloadUrl": url
         }
 
         try:
-            # The Instagram API directly returns the download link
             response = requests.get(f"{INSTAGRAM_API_URL}/downloadReel", headers=headers, params=params, timeout=20)
             response.raise_for_status()
             reel_data = response.json()
@@ -126,7 +133,6 @@ def download():
             if not reel_data.get("url"):
                 return jsonify({"error": "Failed to get Instagram download link"}), 404
 
-            # The API returns the download URL in the 'url' field of the example response
             download_url = reel_data["url"]
             return jsonify({"download_link": download_url, "title": reel_data.get("title", "Instagram Reel")})
 
