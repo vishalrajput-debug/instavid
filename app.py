@@ -12,22 +12,16 @@ RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 
 # ------------------ Helper Function ------------------
 
-
 def extract_video_id(url):
-    """
-    Extract YouTube video ID from any URL
-    """
-    # Shorts URL: youtube.com/shorts/VIDEO_ID
+    """Extract YouTube video ID from any URL"""
     short_match = re.search(r'shorts/([^\?&]+)', url)
     if short_match:
         return short_match.group(1), "short"
 
-    # Short youtu.be URL
     short_youtu = re.search(r'youtu\.be/([^\?&]+)', url)
     if short_youtu:
         return short_youtu.group(1), "video"
 
-    # Standard URL: youtube.com/watch?v=VIDEO_ID
     long_match = re.search(r'v=([^\?&]+)', url)
     if long_match:
         return long_match.group(1), "video"
@@ -36,7 +30,6 @@ def extract_video_id(url):
 
 # ------------------ Main Download Endpoint ------------------
 
-
 @app.route("/download", methods=["GET", "POST"])
 def download():
     # Handle both POST (JSON) and GET (query params)
@@ -44,11 +37,9 @@ def download():
         data = request.get_json()
         url = data.get("url")
         quality = data.get("quality")
-        download_type = data.get("type")
     else:
         url = request.args.get("url")
         quality = request.args.get("quality")
-        download_type = request.args.get("type")
 
     if not url:
         return jsonify({"error": "Missing URL parameter"}), 400
@@ -57,8 +48,8 @@ def download():
     if not video_id:
         return jsonify({"error": "Invalid YouTube URL"}), 400
 
-    # Default quality values
-    quality = "22"
+    # Default to "best" if no quality specified
+    quality = quality or "best"
 
     # Determine endpoint
     if video_type == "short":
@@ -76,13 +67,17 @@ def download():
         response = requests.get(rapidapi_url, headers=headers, timeout=30)
         response.raise_for_status()
         data = response.json()
+
+        # Add a universal "download_link" key
         if "file" in data:
             data["download_link"] = data["file"]
+
         return jsonify(data)
+
     except requests.exceptions.RequestException as e:
         return jsonify({"error": "Failed to fetch from RapidAPI", "details": str(e)}), 500
-    except Exception:
-        return jsonify({"error": "Invalid JSON response from RapidAPI"}), 500
+    except Exception as e:
+        return jsonify({"error": "Invalid JSON response from RapidAPI", "details": str(e)}), 500
 
 # ------------------ Run App ------------------
 if __name__ == "__main__":
