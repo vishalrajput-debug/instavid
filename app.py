@@ -1,69 +1,52 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 import yt_dlp
-import re
 import os
+import uuid
 
 app = Flask(__name__)
-CORS(app, origins=["*"], supports_credentials=True)
+CORS(app, origins=["*"])  # Allow all origins, adjust if needed
 
-# ------------------ Helper Function ------------------
-
-def extract_video_id(url):
-    """
-    Extract YouTube video ID from any URL
-    """
-    short_match = re.search(r'shorts/([^\?&]+)', url)
-    if short_match:
-        return short_match.group(1), "short"
-
-    short_youtu = re.search(r'youtu\.be/([^\?&]+)', url)
-    if short_youtu:
-        return short_youtu.group(1), "video"
-
-    long_match = re.search(r'v=([^\?&]+)', url)
-    if long_match:
-        return long_match.group(1), "video"
-
-    return None, None
-
-# ------------------ Main Download Endpoint ------------------
+# Ensure downloads folder exists
+if not os.path.exists("downloads"):
+    os.makedirs("downloads")
 
 @app.route("/download", methods=["POST"])
-def download():
+def download_video():
     data = request.get_json()
     url = data.get("url")
 
     if not url:
         return jsonify({"error": "Missing URL parameter"}), 400
 
-    video_id, video_type = extract_video_id(url)
-    if not video_id:
-        return jsonify({"error": "Invalid YouTube URL"}), 400
-
-    # ---------------- yt-dlp Options ----------------
-    ydl_opts = {
-        "format": "bestvideo[height<=720]+bestaudio/best[height<=720]",
-"merge_output_format": "mp4",
-        "outtmpl": f"downloads/{video_id}.%(ext)s",
-    }
-
     try:
+        # Generate unique filename
+        unique_id = str(uuid.uuid4())
+        output_template = f"downloads/{unique_id}.%(ext)s"
+
+        # yt-dlp options (no cookies.txt, 720p max, mp4 output)
+        ydl_opts = {
+            "format": "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4",
+            "merge_output_format": "mp4",
+            "outtmpl": output_template,
+        }
+
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info).replace(".webm", ".mp4")
+            final_filename = ydl.prepare_filename(info)
+            if not final_filename.endswith(".mp4"):
+                final_filename = final_filename.rsplit(".", 1)[0] + ".mp4"
 
-        return jsonify({
-            "title": info.get("title"),
-            "id": info.get("id"),
-            "download_link": f"/{filename}"
-        })
+        return send_file(final_filename, as_attachment=True)
 
     except Exception as e:
-        return jsonify({"error": "Download failed", "details": str(e)}), 500
+        return jsonify({"error": str(e)}), 500
 
-# ------------------ Run App ------------------
+
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"message": "YouTube Downloader API is running"})
+
 
 if __name__ == "__main__":
-    os.makedirs("downloads", exist_ok=True)
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
