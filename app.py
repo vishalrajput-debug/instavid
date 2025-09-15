@@ -1,52 +1,85 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify
+import requests
+import re
 from flask_cors import CORS
-import yt_dlp
-import os
-import uuid
 
 app = Flask(__name__)
-CORS(app, origins=["*"])  # Allow all origins, adjust if needed
+CORS(app, origins=["*"], supports_credentials=True)  # allow all origins
 
-# Ensure downloads folder exists
-if not os.path.exists("downloads"):
-    os.makedirs("downloads")
+# ------------------ RapidAPI Config ------------------
+RAPIDAPI_KEY = "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238"
+RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 
-@app.route("/download", methods=["POST"])
-def download_video():
-    data = request.get_json()
-    url = data.get("url")
+# ------------------ Helper Function ------------------
+
+def extract_video_id(url):
+    """Extract YouTube video ID from any URL"""
+    short_match = re.search(r'shorts/([^\?&]+)', url)
+    if short_match:
+        return short_match.group(1), "short"
+
+    short_youtu = re.search(r'youtu\.be/([^\?&]+)', url)
+    if short_youtu:
+        return short_youtu.group(1), "video"
+
+    long_match = re.search(r'v=([^\?&]+)', url)
+    if long_match:
+        return long_match.group(1), "video"
+
+    return None, None
+
+# ------------------ Main Download Endpoint ------------------
+
+@app.route("/download", methods=["GET", "POST"])
+def download():
+    # Handle both POST (JSON) and GET (query params)
+    if request.method == "POST":
+        data = request.get_json()
+        url = data.get("url")
+        quality = data.get("quality")
+    else:
+        url = request.args.get("url")
+        quality = request.args.get("quality")
 
     if not url:
         return jsonify({"error": "Missing URL parameter"}), 400
 
+    video_id, video_type = extract_video_id(url)
+    if not video_id:
+        return jsonify({"error": "Invalid YouTube URL"}), 400
+
+    # Default to "best" if no quality specified
+    quality = quality or "best"
+
+    # Determine endpoint
+    if video_type == "short":
+        endpoint = f"/download_short/{video_id}?quality={quality}"
+    else:
+        endpoint = f"/download_video/{video_id}?quality={quality}"
+
+    rapidapi_url = f"https://{RAPIDAPI_HOST}{endpoint}"
+    headers = {
+        "X-Rapidapi-Key": RAPIDAPI_KEY,
+        "X-Rapidapi-Host": RAPIDAPI_HOST
+    }
+
     try:
-        # Generate unique filename
-        unique_id = str(uuid.uuid4())
-        output_template = f"downloads/{unique_id}.%(ext)s"
+        response = requests.get(rapidapi_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        data = response.json()
 
-        # yt-dlp options (no cookies.txt, 720p max, mp4 output)
-        ydl_opts = {
-            "format": "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/mp4",
-            "merge_output_format": "mp4",
-            "outtmpl": output_template,
-        }
+        # Add a universal "download_link" key
+        if "file" in data:
+            data["download_link"] = data["file"]
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            final_filename = ydl.prepare_filename(info)
-            if not final_filename.endswith(".mp4"):
-                final_filename = final_filename.rsplit(".", 1)[0] + ".mp4"
+        return jsonify(data)
 
-        return send_file(final_filename, as_attachment=True)
-
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": "Failed to fetch from RapidAPI", "details": str(e)}), 500
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Invalid JSON response from RapidAPI", "details": str(e)}), 500
 
-
-@app.route("/", methods=["GET"])
-def home():
-    return jsonify({"message": "YouTube Downloader API is running"})
-
-
+# ------------------ Run App ------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(debug=True)
+
