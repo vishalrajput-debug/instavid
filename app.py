@@ -44,7 +44,7 @@ def is_instagram_url(url):
     """Check if the URL is from Instagram."""
     return "instagram.com" in url
 
-@app.route("/download", methods=["POST"])
+@app.route("/download", methods=["POST", "GET"])
 def download():
     """Unified endpoint to download videos from YouTube and Instagram."""
     data = request.get_json()
