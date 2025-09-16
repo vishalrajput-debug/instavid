@@ -16,7 +16,7 @@ YOUTUBE_RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 YOUTUBE_API_URL = f"https://{YOUTUBE_RAPIDAPI_HOST}"
 
 # Correct Instagram API Details based on your successful RapidAPI test
-INSTAGRAM_RAPIDAPI_HOST = "instagram-downloader-download-instagram-stories-videos-4.p.rapidapi.com"
+INSTAGRAM_RAPIDAPI_HOST = "instagram-downloader-download-instagram-stories-videos4.p.rapidapi.com"
 INSTAGRAM_API_URL = f"https://{INSTAGRAM_RAPIDAPI_HOST}"
 
 def extract_video_id(url):
