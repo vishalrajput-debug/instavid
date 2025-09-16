@@ -9,18 +9,15 @@ CORS(app, origins=["*"], supports_credentials=True)
 # -----------------
 # API Credentials
 # -----------------
-# Use the key provided by your subscribed API
 RAPIDAPI_KEY = "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238"
 
 # YouTube API Details
 YOUTUBE_RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 YOUTUBE_API_URL = f"https://{YOUTUBE_RAPIDAPI_HOST}"
 
-# Correct Instagram API Details from your screenshots
-# Use the exact host you are subscribed to
+# Correct Instagram API Details based on your successful RapidAPI test
 INSTAGRAM_RAPIDAPI_HOST = "instagram-downloader-download-instagram-stories-videos-4.p.rapidapi.com"
 INSTAGRAM_API_URL = f"https://{INSTAGRAM_RAPIDAPI_HOST}"
-
 
 def extract_video_id(url):
     """Extract YouTube video ID from any URL"""
@@ -52,7 +49,7 @@ def download():
     
     if request.method == "POST":
         data = request.get_json()
-    else:  # Assumes GET request
+    else:
         data = request.args
 
     url = data.get("url")
@@ -117,21 +114,19 @@ def download():
             "X-Rapidapi-Host": INSTAGRAM_RAPIDAPI_HOST
         }
         
-        # The endpoint and parameter name might be different for this API
-        # Check the documentation for "Instagram Downloader - Download Instagram Stories - Videos"
-        # I'll use a placeholder `get_download_link`
+        # Based on your successful test, the endpoint is likely /convert
+        # and the parameter is 'url'.
         params = {
-            "downloadUrl": url # Assuming the parameter name is the same
+            "url": url 
         }
 
         try:
-            # You must replace "/get_download_link" with the correct endpoint
-            response = requests.get(f"{INSTAGRAM_API_URL}/get_download_link", headers=headers, params=params, timeout=20)
+            response = requests.get(f"{INSTAGRAM_API_URL}/convert", headers=headers, params=params, timeout=20)
             response.raise_for_status()
             data = response.json()
 
-            # The key for the download URL might also be different
-            # It looks like it could be 'url' from the example response
+            # The key for the download URL might also be different.
+            # Your successful test shows the key is 'url' within the response.
             download_url = data.get("url")
 
             if not download_url:
