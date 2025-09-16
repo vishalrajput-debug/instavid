@@ -16,7 +16,7 @@ YOUTUBE_RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 YOUTUBE_API_URL = f"https://{YOUTUBE_RAPIDAPI_HOST}"
 
 # Instagram API Details (from the provided screenshot)
-INSTAGRAM_RAPIDAPI_HOST = "instagram-reels-downloader-api.p.rapidapi.com"
+INSTAGRAM_RAPIDAPI_HOST = "instagram-downloader-download-instagram-stories-videos4.p.rapidapi.com"
 INSTAGRAM_API_URL = f"https://{INSTAGRAM_RAPIDAPI_HOST}"
 
 
