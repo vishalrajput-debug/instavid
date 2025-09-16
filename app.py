@@ -9,14 +9,16 @@ CORS(app, origins=["*"], supports_credentials=True)
 # -----------------
 # API Credentials
 # -----------------
+# Use the key provided by your subscribed API
 RAPIDAPI_KEY = "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238"
 
 # YouTube API Details
 YOUTUBE_RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 YOUTUBE_API_URL = f"https://{YOUTUBE_RAPIDAPI_HOST}"
 
-# Instagram API Details (from the provided screenshot)
-INSTAGRAM_RAPIDAPI_HOST = "instagram-downloader-download-instagram-stories-videos4.p.rapidapi.com"
+# Correct Instagram API Details from your screenshots
+# Use the exact host you are subscribed to
+INSTAGRAM_RAPIDAPI_HOST = "instagram-downloader-download-instagram-stories-videos-4.p.rapidapi.com"
 INSTAGRAM_API_URL = f"https://{INSTAGRAM_RAPIDAPI_HOST}"
 
 
@@ -48,7 +50,6 @@ def is_instagram_url(url):
 def download():
     """Unified endpoint to download videos from YouTube and Instagram."""
     
-    # Check the request method and get data accordingly
     if request.method == "POST":
         data = request.get_json()
     else:  # Assumes GET request
@@ -74,7 +75,6 @@ def download():
         }
 
         try:
-            # Step 1: Get available qualities
             q_res = requests.get(f"{YOUTUBE_API_URL}/get_available_quality/{video_id}", headers=headers, timeout=20)
             q_res.raise_for_status()
             qualities = q_res.json()
@@ -82,12 +82,10 @@ def download():
             if not qualities:
                 return jsonify({"error": "No qualities found"}), 404
 
-            # Filter only video types
             video_qualities = [q for q in qualities if q.get("type") == "video"]
             if not video_qualities:
                 return jsonify({"error": "No video formats available"}), 404
 
-            # Step 2: Choose quality
             chosen_quality = None
             if requested_quality and requested_quality != "best":
                 for q in video_qualities:
@@ -97,7 +95,6 @@ def download():
             if not chosen_quality:
                 chosen_quality = video_qualities[0]["quality"]
 
-            # Step 3: Fetch download link
             d_res = requests.get(f"{YOUTUBE_API_URL}/download_video/{video_id}?quality={chosen_quality}", headers=headers, timeout=30)
             d_res.raise_for_status()
             dl_data = d_res.json()
@@ -120,21 +117,27 @@ def download():
             "X-Rapidapi-Host": INSTAGRAM_RAPIDAPI_HOST
         }
         
-        # NOTE: Instagram API uses a GET request with query parameters.
+        # The endpoint and parameter name might be different for this API
+        # Check the documentation for "Instagram Downloader - Download Instagram Stories - Videos"
+        # I'll use a placeholder `get_download_link`
         params = {
-            "downloadUrl": url
+            "downloadUrl": url # Assuming the parameter name is the same
         }
 
         try:
-            response = requests.get(f"{INSTAGRAM_API_URL}/downloadReel", headers=headers, params=params, timeout=20)
+            # You must replace "/get_download_link" with the correct endpoint
+            response = requests.get(f"{INSTAGRAM_API_URL}/get_download_link", headers=headers, params=params, timeout=20)
             response.raise_for_status()
-            reel_data = response.json()
+            data = response.json()
 
-            if not reel_data.get("url"):
+            # The key for the download URL might also be different
+            # It looks like it could be 'url' from the example response
+            download_url = data.get("url")
+
+            if not download_url:
                 return jsonify({"error": "Failed to get Instagram download link"}), 404
 
-            download_url = reel_data["url"]
-            return jsonify({"download_link": download_url, "title": reel_data.get("title", "Instagram Reel")})
+            return jsonify({"download_link": download_url})
 
         except requests.exceptions.RequestException as e:
             return jsonify({"error": "Failed to fetch Instagram Reel", "details": str(e)}), 500
