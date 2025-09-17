@@ -115,13 +115,13 @@ def download():
             "X-Rapidapi-Host": INSTAGRAM_RAPIDAPI_HOST
         }
         
-        # Correct parameter name based on successful test
+        # The parameter name is 'url', not 'downloadUrl'.
         params = {
             "url": url 
         }
 
         try:
-            # Correct endpoint based on successful test
+            # The correct endpoint is 'convert'.
             response = requests.get(f"{INSTAGRAM_API_URL}/convert", headers=headers, params=params, timeout=20)
             response.raise_for_status()
             data = response.json()
