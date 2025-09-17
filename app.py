@@ -16,8 +16,9 @@ YOUTUBE_RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 YOUTUBE_API_URL = f"https://{YOUTUBE_RAPIDAPI_HOST}"
 
 # Correct Instagram API Details based on your successful RapidAPI test
-INSTAGRAM_RAPIDAPI_HOST = "instagram-downloader-download-instagram-stories-videos4.p.rapidapi.com"
+INSTAGRAM_RAPIDAPI_HOST = "api.rapidapi.com"
 INSTAGRAM_API_URL = f"https://{INSTAGRAM_RAPIDAPI_HOST}"
+
 
 def extract_video_id(url):
     """Extract YouTube video ID from any URL"""
@@ -62,6 +63,7 @@ def download():
     # Logic for YouTube
     # -----------------
     if is_youtube_url(url):
+        # ... (Your existing YouTube logic)
         video_id = extract_video_id(url)
         if not video_id:
             return jsonify({"error": "Invalid YouTube URL"}), 400
@@ -114,26 +116,26 @@ def download():
             "X-Rapidapi-Host": INSTAGRAM_RAPIDAPI_HOST
         }
         
-        # Based on your successful test, the endpoint is likely /convert
-        # and the parameter is 'url'.
         params = {
-            "url": url 
+            "downloadUrl": url
         }
 
         try:
-            response = requests.get(f"{INSTAGRAM_API_URL}/convert", headers=headers, params=params, timeout=20)
+            # The URL to the API endpoint itself must now be correct
+            # Check the RapidAPI documentation for the full path
+            response = requests.get(f"{INSTAGRAM_API_URL}/endpoint", headers=headers, params=params, timeout=20)
             response.raise_for_status()
-            data = response.json()
-
-            # The key for the download URL might also be different.
-            # Your successful test shows the key is 'url' within the response.
-            download_url = data.get("url")
-
-            if not download_url:
+            
+            # ... rest of the Instagram logic
+            reel_data = response.json()
+            if not reel_data.get("url"):
                 return jsonify({"error": "Failed to get Instagram download link"}), 404
 
-            return jsonify({"download_link": download_url})
+            download_url = reel_data["url"]
+            return jsonify({"download_link": download_url, "title": reel_data.get("title", "Instagram Reel")})
 
+        except requests.exceptions.HTTPError as e:
+            return jsonify({"error": "Failed to fetch Instagram Reel", "details": f"HTTP Error: {e.response.status_code} - {e.response.text}"}), 500
         except requests.exceptions.RequestException as e:
             return jsonify({"error": "Failed to fetch Instagram Reel", "details": str(e)}), 500
 
