@@ -16,7 +16,7 @@ YOUTUBE_RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 YOUTUBE_API_URL = f"https://{YOUTUBE_RAPIDAPI_HOST}"
 
 # Correct Instagram API Details based on your successful RapidAPI test
-INSTAGRAM_RAPIDAPI_HOST = "instagram-downloader-download-instagram-stories-videos-4.p.rapidapi.com"
+INSTAGRAM_RAPIDAPI_HOST = "instagram-reels-downloader-api.p.rapidapi.com"
 INSTAGRAM_API_URL = f"https://{INSTAGRAM_RAPIDAPI_HOST}"
 
 
@@ -115,18 +115,20 @@ def download():
             "X-Rapidapi-Host": INSTAGRAM_RAPIDAPI_HOST
         }
         
+        # The new endpoint is `/downloadReel`.
         # The parameter name is 'url', not 'downloadUrl'.
         params = {
             "url": url 
         }
 
         try:
-            # The correct endpoint is 'convert'.
-            response = requests.get(f"{INSTAGRAM_API_URL}/convert", headers=headers, params=params, timeout=20)
+            # The correct endpoint is 'downloadReel'.
+            response = requests.get(f"{INSTAGRAM_API_URL}/downloadReel", headers=headers, params=params, timeout=20)
             response.raise_for_status()
             data = response.json()
 
-            # The key for the download URL is 'url' within the response.
+            # The key for the download URL is 'url' within the response,
+            # but it is nested inside the 'url' field of the response body, as seen in the screenshot.
             download_url = data.get("url")
 
             if not download_url:
