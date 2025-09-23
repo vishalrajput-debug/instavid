@@ -9,6 +9,7 @@ CORS(app, origins=["*"], supports_credentials=True)
 # -----------------
 # API Credentials
 # -----------------
+# IMPORTANT: Replace with your actual RapidAPI Key.
 RAPIDAPI_KEY = "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238"
 
 # YouTube API Details
@@ -73,6 +74,7 @@ def download():
         }
 
         try:
+            # Step 1: Get available video qualities
             q_res = requests.get(f"{YOUTUBE_API_URL}/get_available_quality/{video_id}", headers=headers, timeout=20)
             q_res.raise_for_status()
             qualities = q_res.json()
@@ -93,6 +95,7 @@ def download():
             if not chosen_quality:
                 chosen_quality = video_qualities[0]["quality"]
 
+            # Step 2: Get the download link for the chosen quality
             d_res = requests.get(f"{YOUTUBE_API_URL}/download_video/{video_id}?quality={chosen_quality}", headers=headers, timeout=30)
             d_res.raise_for_status()
             dl_data = d_res.json()
@@ -104,6 +107,7 @@ def download():
             return jsonify(dl_data)
 
         except requests.exceptions.RequestException as e:
+            # This handles network errors, timeouts, and non-2xx status codes from the API
             return jsonify({"error": "Failed to fetch YouTube video", "details": str(e)}), 500
 
     # -----------------
@@ -122,24 +126,44 @@ def download():
         }
 
         try:
-            # The correct endpoint is 'downloadReel'.
+            # The correct endpoint for Instagram Reels is 'downloadReel'.
+            # The parameter is passed as a query string 'url'.
             response = requests.get(f"{INSTAGRAM_API_URL}/downloadReel", headers=headers, params=params, timeout=20)
+            
+            # Check for a successful HTTP status code (2xx). If not, raise an exception.
             response.raise_for_status()
+            
+            # Parse the JSON response from the API.
             data = response.json()
 
             # The key for the download URL is 'url' within the response,
-            # but it is nested inside the 'url' field of the response body, as seen in the screenshot.
+            # which is nested in the body.
             download_url = data.get("url")
 
             if not download_url:
-                return jsonify({"error": "Failed to get Instagram download link"}), 404
+                # If the 'url' key is missing or empty, the download failed.
+                return jsonify({"error": "Failed to get Instagram download link. Response from API was: " + str(data)}), 404
 
+            # Return the download link in a consistent format.
             return jsonify({"download_link": download_url})
 
+        except requests.exceptions.HTTPError as e:
+            # This specifically catches API errors like 400 Bad Request or 404 Not Found.
+            return jsonify({
+                "error": "API returned an error", 
+                "details": str(e),
+                "api_response": response.text  # Include the full API response for debugging
+            }), response.status_code
+            
         except requests.exceptions.RequestException as e:
-            return jsonify({"error": "Failed to fetch Instagram Reel", "details": str(e)}), 500
+            # This handles general network or timeout errors.
+            return jsonify({
+                "error": "Failed to connect to the Instagram API",
+                "details": str(e)
+            }), 500
 
     else:
+        # If the URL is neither YouTube nor Instagram.
         return jsonify({"error": "Unsupported URL format. Please provide a YouTube or Instagram URL."}), 400
 
 if __name__ == "__main__":
