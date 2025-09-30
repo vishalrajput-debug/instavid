@@ -128,7 +128,7 @@ def download():
         try:
             # The correct endpoint for Instagram Reels is 'downloadReel'.
             # The parameter is passed as a query string 'url'.
-            response = requests.get(f"{INSTAGRAM_API_URL}/downloadReel", headers=headers, params=params, timeout=20)
+            response = requests.get(f"{INSTAGRAM_API_URL}/download", headers=headers, params=params, timeout=20)
             
             # Check for a successful HTTP status code (2xx). If not, raise an exception.
             response.raise_for_status()
