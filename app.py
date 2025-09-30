@@ -17,7 +17,7 @@ YOUTUBE_RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 YOUTUBE_API_URL = f"https://{YOUTUBE_RAPIDAPI_HOST}"
 
 # Correct Instagram API Details based on your successful RapidAPI test
-INSTAGRAM_RAPIDAPI_HOST = "instagram-reels-downloader-api.p.rapidapi.com"
+INSTAGRAM_RAPIDAPI_HOST = "instagram-reels-stories-downloader-api.p.rapidapi.com"
 INSTAGRAM_API_URL = f"https://{INSTAGRAM_RAPIDAPI_HOST}"
 
 
@@ -128,7 +128,7 @@ def download():
         try:
             # The correct endpoint for Instagram Reels is 'downloadReel'.
             # The parameter is passed as a query string 'url'.
-            response = requests.get(f"{INSTAGRAM_API_URL}/download", headers=headers, params=params, timeout=20)
+            response = requests.get(f"{INSTAGRAM_API_URL}/convert", headers=headers, params=params, timeout=20)
             
             # Check for a successful HTTP status code (2xx). If not, raise an exception.
             response.raise_for_status()
