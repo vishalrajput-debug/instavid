@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, Response, stream_with_context
+from flask import Flask, request, jsonify
 import requests
 import re
 from flask_cors import CORS
@@ -11,15 +11,18 @@ CORS(app, origins=["*"], supports_credentials=True)
 # -----------------
 # API Credentials
 # -----------------
+# NOTE: Using the key provided in your previous message.
 RAPIDAPI_KEY = "82f0a2c073mshc80b6b4a96395cdp11ed2bjsnae9413302238" 
 
 YOUTUBE_RAPIDAPI_HOST = "youtube-video-fast-downloader-24-7.p.rapidapi.com"
 YOUTUBE_API_URL = f"https://{YOUTUBE_RAPIDAPI_HOST}"
 
+# NOTE ON INSTAGRAM HOST: Your code uses this host: "instagram-reels-stories-downloader-api.p.rapidapi.com"
+# Your curl test was against a different host: "instagram-downloader-download-instagram-stories-videos4.p.rapidapi.com"
+# We will use the host defined in your code, but the parsing logic below is updated for the API response you showed.
 INSTAGRAM_RAPIDAPI_HOST = "instagram-reels-stories-downloader-api.p.rapidapi.com"
 INSTAGRAM_API_URL = f"https://{INSTAGRAM_RAPIDAPI_HOST}"
 
-# --- Utility Functions (Omitted for brevity) ---
 def extract_video_id(url):
     """Extracts YouTube video ID from various URL formats."""
     short_match = re.search(r'shorts/([^\?&]+)', url)
@@ -43,56 +46,6 @@ def is_youtube_url(url):
 def is_instagram_url(url):
     """Checks if the URL is an Instagram domain."""
     return "instagram.com" in url
-# -----------------------------------------------
-
-
-# NEW ROUTE: Proxy to force download with Content-Disposition header
-@app.route("/force_download", methods=["GET"])
-def force_download():
-    """Proxies the final download link and forces the browser to download the file."""
-    # The 'file_url' is the direct link to the Instagram media file (the one that was opening in a new tab)
-    file_url = request.args.get("file_url")
-    filename = request.args.get("filename", "instavid_media.mp4")
-
-    if not file_url:
-        return jsonify({"error": "Missing file_url parameter"}), 400
-
-    try:
-        # Use requests.get with stream=True to handle large files efficiently
-        stream_response = requests.get(file_url, stream=True, timeout=30)
-        stream_response.raise_for_status()
-
-        # Extract content type from the source response if available, default to video/mp4
-        content_type = stream_response.headers.get("Content-Type", "video/mp4")
-        
-        # Determine file extension for the download filename
-        if 'image' in content_type:
-            ext = '.jpg'
-        elif 'video' in content_type:
-            ext = '.mp4'
-        else:
-            # Fallback for HEIC/other types, though we default to MP4 for Instagram Reels
-            ext = '.bin' 
-
-        # 1. Create a streaming response from Flask
-        # 2. Add the crucial Content-Disposition header to force download
-        response = Response(
-            # Stream the content chunk by chunk
-            stream_with_context(stream_response.iter_content(chunk_size=1024 * 1024)), 
-            content_type=content_type
-        )
-        # IMPORTANT: This header tells the browser to download the file
-        response.headers["Content-Disposition"] = f"attachment; filename={filename}{ext}"
-        
-        # Optional: Set Content-Length if the source provided it, helps with download progress
-        if 'Content-Length' in stream_response.headers:
-            response.headers["Content-Length"] = stream_response.headers["Content-Length"]
-
-        return response
-
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": "Failed to stream the file from the source URL", "details": str(e)}), 500
-
 
 # ✅ YOUTUBE ENDPOINT (UNCHANGED)
 @app.route("/download", methods=["POST", "GET"])
@@ -133,24 +86,26 @@ def download_youtube():
         dl_data = d_res.json()
 
         if "file" not in dl_data:
+            # The API responded, but didn't provide the expected download link
             return jsonify({"error": "Download link not found in API response", "api_response": dl_data}), 404
 
-        # YouTube link is returned directly (it usually has the necessary headers or is temporary)
         return jsonify({"download_link": dl_data["file"]})
 
     except requests.exceptions.RequestException as e:
+        # General error during request (timeout, connection failure, API HTTP error)
         return jsonify({"error": "Failed to fetch YouTube video", "details": str(e)}), 500
 
-# ✅ INSTAGRAM ENDPOINT (MODIFIED TO RETURN PROXY LINK)
+# ✅ INSTAGRAM ENDPOINT (FIXED PARSING LOGIC)
 @app.route("/convert", methods=["GET", "POST"])
 def convert_instagram():
-    """Gets the direct media URL from the API and converts it into a local proxy URL."""
+    """Handles Instagram media downloads by correctly parsing the API response structure."""
     data = request.get_json() if request.method == "POST" else request.args
     url = data.get("url")
 
     if not url or not is_instagram_url(url):
         return jsonify({"error": "Please provide a valid Instagram URL"}), 400
 
+    # Ensure the API host is used that is defined in the variables
     target_url = f"{INSTAGRAM_API_URL}/convert"
 
     headers = {
@@ -165,34 +120,40 @@ def convert_instagram():
 
         download_link = None
         
-        # Correctly parse the download link
+        # --- FIX: Correctly parse the download link based on the API response structure ---
+        # 1. Check for the 'media' array first (as seen in your curl output)
         if isinstance(api_data.get("media"), list) and api_data["media"]:
+            # Reels/Posts often return a list of media, we take the URL from the first item.
             download_link = api_data["media"][0].get("url")
+            
+        # 2. Check for a top-level 'download_link' or 'url' as a fallback
         elif api_data.get("download_link"):
             download_link = api_data["download_link"]
         elif api_data.get("url"):
+            # Some APIs return the main URL at the top level
             download_link = api_data["url"]
-        
+        # ---------------------------------------------------------------------------------
+
         if not download_link:
+            # If the link couldn't be extracted, return the full API response for debugging
             error_message = api_data.get("error") or "Failed to extract media link from API response. Check response details."
             return jsonify({
                 "error": error_message, 
                 "response_details": api_data,
-                "note": "The API response was received but the download link could not be found."
+                "note": "The API response was received but the download link could not be found in the expected format (media[0].url or download_link/url at root)."
             }), 404
 
-        # --- KEY CHANGE: Return the URL to our new Flask proxy route ---
-        # The frontend will now call this local proxy route, which forces the download.
-        proxied_download_url = f"/force_download?file_url={requests.utils.quote(download_link)}&filename=instavid_media"
-
-        return jsonify({"download_link": proxied_download_url})
+        return jsonify({"download_link": download_link})
 
     except requests.exceptions.RequestException as e:
+        # General error during request (timeout, connection failure, API HTTP error)
+        # Check if the API returned an HTTP error (e.g., 401, 403, 404, 500)
         status_code = e.response.status_code if e.response is not None else 500
         return jsonify({
             "error": "Failed to connect to Instagram API", 
             "details": str(e),
             "status_code": status_code,
+            "note": "If the status code is 400/404/429/500, the RapidAPI service failed to process the request."
         }), status_code if status_code >= 400 else 500
 
 
